@@ -1,0 +1,155 @@
+---
+title: "R_MAPEAMENTO_COSTEIRO_2"
+author: "Camila Totti"
+date: "12/12/2021"
+objetivos: manipular e analisar exemplos de dados de ondas do modelo NWW3 e das medições do PNBOIA
+output: html_document
+---
+
+```{r Importando e Ajustando os Dados}
+library('tidyr')
+library("naniar")
+
+ww3_diarios_buzios <- read.delim('C:/Users/camil/Documents/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_VI_Aula_V/dados buzios diarios 2003 2019.tsv',stringsAsFactors = FALSE)
+ww3_diarios_buzios <- separate(ww3_diarios_buzios,"DATA",c("MES","DIA","ANO"), sep="/")
+ww3_diarios_buzios <- unite(ww3_diarios_buzios,"DATA", c("ANO","MES","DIA"), sep = "-", remove=FALSE)
+ww3_diarios_buzios$DATA <- as.Date(ww3_diarios_buzios$DATA)
+indx <- sapply(ww3_diarios_buzios,is.character)
+ww3_diarios_buzios[indx] <- lapply(ww3_diarios_buzios[indx], function(x) as.numeric(as.character(x)))
+ww3_diarios_buzios <- ww3_diarios_buzios[-c(5928:5933),]
+
+pnboia_diarios_cabofrio <- read.delim('C:/Users/camil/Documents/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_VI_Aula_V/dados pnboia cabofrio 2009 2013.tsv', stringsAsFactors = FALSE)
+pnboia_diarios_cabofrio <- separate(pnboia_diarios_cabofrio, "Data", c("DIA","MES","ANO"), sep = "/")
+pnboia_diarios_cabofrio <- unite(pnboia_diarios_cabofrio, "DATA", c("ANO", "MES", "DIA"), sep = "-", remove = FALSE)
+pnboia_diarios_cabofrio$DATA <- as.Date(pnboia_diarios_cabofrio$DATA)
+
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Hora")] <- "HORA"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Velocidade.do.Vento")] <- "VV"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Direcao.do.Vento")] <- "DV"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Altura.Significativa.de.Ondas")] <- "AO"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Altura.Maxima.de.Ondas")] <- "AO.max"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Direcao.de.Ondas.media")] <- "DO"
+colnames(pnboia_diarios_cabofrio) [which(names(pnboia_diarios_cabofrio) == "Periodo.de.Pico")] <- "PO"
+
+pnboia_diarios_cabofrio$DIA <- as.numeric(pnboia_diarios_cabofrio$DIA)
+pnboia_diarios_cabofrio$MES <- as.numeric(pnboia_diarios_cabofrio$MES)
+pnboia_diarios_cabofrio$ANO <- as.numeric(pnboia_diarios_cabofrio$ANO)
+pnboia_diarios_cabofrio$VV <- as.numeric(pnboia_diarios_cabofrio$VV)
+
+pnboia_diarios_cabofrio <- pnboia_diarios_cabofrio %>% replace_with_na_all(condition = ~.x==-9999)
+```
+
+```{r Estatística Básica das Condições de Ventos e Ondas Modelo WW3 Buzios}
+install.packages("expss")
+install.packages("checkmate")
+install.packages("rstudioapi")
+
+library("rstudioapi")
+library("checkmate")
+library("expss")
+library("openair")
+
+# Tabela
+
+temp_ww3_diarios_buzios <- data.frame(VV = unlist(ww3_diarios_buzios[,c(5:12)],use.names=FALSE),DV = unlist(ww3_diarios_buzios[,c(13:20)],use.names=FALSE),AO = unlist(ww3_diarios_buzios[,c(21:28)],use.names=FALSE), DO = unlist(ww3_diarios_buzios[,c(29:36)],use.names=FALSE),PO = unlist(ww3_diarios_buzios[,c(37:44)],use.names=FALSE), TEMP = unlist(ww3_diarios_buzios[,c(45:52)],use.names=FALSE))
+
+temp_ww3_diarios_buzios = apply_labels(temp_ww3_diarios_buzios, VV= "Velocidade do Vento (m/s)", DV = "Direcao dos Ventos (ºN)", AO = "Altura Significativa de Ondas (m)", TEMP = "Temperatura Atmosférica (ºC)", DO = "Direcao Média das Ondas (ºN)", PO = "Periodo de Ondas (s)")
+
+temp_ww3_diarios_buzios <- lapply(temp_ww3_diarios_buzios, as.numeric)
+temp_ww3_diarios_buzios <- as.data.frame(temp_ww3_diarios_buzios)
+
+tabela_ww3_buzios <- temp_ww3_diarios_buzios %>%
+  tab_cells(VV,DV,AO,DO,PO,TEMP) %>%
+  tab_cols(Total="2003 a 2019","Durante Tempestades"=AO>=3) %>%
+  tab_stat_fun("Média"=w_mean,"Mínima"=w_min,"Máxima"= w_max,"Desvio Padrão"=w_sd,"N"=w_n) %>%
+  tab_pivot(stat_position = "inside_columns") %>%
+  tab_caption("Estatística Basica dos Dados da Estaçao Buzios")
+
+tabela_ww3_buzios <- tabela_ww3_buzios[,-c(3)]
+tabela_ww3_buzios
+
+
+# Grafico de Ventos
+
+temp_ww3_diarios_buzios_ventos <- data.frame(ws = unlist(ww3_diarios_buzios[,c(5:12)], use.names = FALSE), wd = unlist(ww3_diarios_buzios[,c(13:20)], use.names = FALSE))
+windRose(temp_ww3_diarios_buzios_ventos,ws.int = 2, breaks = c(0,4,8,12,16), paddle = FALSE, cols="increment", key.position = "right", key.header = "Ventos Costeiros (m/s) Buzios, 2003-2019")
+
+# Grafico de Ondas
+
+temp_ww3_diarios_buzios_ondas <- data.frame(ws = unlist(ww3_diarios_buzios[,c(21:28)], use.names = FALSE), wd = unlist(ww3_diarios_buzios[,c(29:36)], use.names = FALSE))
+windRose(temp_ww3_diarios_buzios_ondas,ws.int = 2, breaks = c(0,1,2,3,4), paddle = FALSE, cols="hue", key.position = "right", key.header = "Altura Sig. Ondas (m) Buzios, 2003-2019")
+```
+
+```{r Estatística Basica PNBOIA Cabo Frio}
+library("expss")
+library("openair")
+
+# Tabela
+
+pnboia_diarios_cabofrio = apply_labels(pnboia_diarios_cabofrio, VV="Velocidade do Vento (m/s)", DV="Direção dos Ventos (°N)", AO="Altura Significativa de Ondas (m)", AO.max="Altura Máxima de Ondas (m)", DO="Direção Média das Ondas (°N)", PO="Periodo de Ondas (s)")
+
+temp_ww3_diarios_buzios <- lapply(temp_ww3_diarios_buzios, as.numeric)
+temp_ww3_diarios_buzios <- as.data.frame(temp_ww3_diarios_buzios)
+
+tabela_pnboia_diarios_cabofrio <- pnboia_diarios_cabofrio %>%
+  tab_cells(VV,DV,AO,DO,PO,AO.max) %>%
+  tab_cols(Total="2009 a 2013", "Durante Tempestades"= AO>=3) %>%
+  tab_stat_fun("Média"=w_mean, "Mínima"=w_min, "Máxima"=w_max, "Desvio Padrão"=w_sd,"N"=w_n) %>%
+  tab_pivot(stat_position = "inside_columns") %>%
+  tab_caption("Estatística Básica dos Dados da Estaçao Cabo Frio")
+
+tabela_pnboia_diarios_cabofrio <- tabela_pnboia_diarios_cabofrio[,-c(3)]
+tabela_pnboia_diarios_cabofrio
+
+
+# Grafico Ventos
+
+pnboia_diarios_cabofrio$ws <- pnboia_diarios_cabofrio$VV
+pnboia_diarios_cabofrio$wd <- pnboia_diarios_cabofrio$DV
+windRose(pnboia_diarios_cabofrio,ws.int = 2, breaks = c(0,4,8,12,16), paddle = FALSE, cols="increment", key.position = "right", key.header = "Ventos Costeiros (m/s) Cabo Frio, 2009-2013")
+
+
+# Grafico Ondas
+
+pnboia_diarios_cabofrio$ws <- pnboia_diarios_cabofrio$AO
+pnboia_diarios_cabofrio$wd <- pnboia_diarios_cabofrio$DO
+windRose(pnboia_diarios_cabofrio,ws.int = 2, breaks = c(0,1,2,3,4), paddle = FALSE, cols="hue", key.position = "right", key.header = "Altura Sign. Ondas (m) Cabo Frio, 2009-2013")
+
+
+# Grafico Ondas Maximas
+
+pnboia_diarios_cabofrio$ws <- pnboia_diarios_cabofrio$AO.max
+pnboia_diarios_cabofrio$wd <- pnboia_diarios_cabofrio$DO
+windRose(pnboia_diarios_cabofrio,ws.int = 2, breaks = c(0,1,2,3,4), paddle = FALSE, cols="hue", key.position = "right", key.header = "Altura Máxima de Ondas (m) Cabo Frio, 2009-2013")
+
+```
+
+```{r Extração de Informações WW3 Buzios}
+
+temp_ww3_diarios_buzios <- data.frame(VV = unlist(ww3_diarios_buzios[,c(5:12)],use.names=FALSE),DV = unlist(ww3_diarios_buzios[,c(13:20)],use.names=FALSE),AO = unlist(ww3_diarios_buzios[,c(21:28)],use.names=FALSE), DO = unlist(ww3_diarios_buzios[,c(29:36)],use.names=FALSE),PO = unlist(ww3_diarios_buzios[,c(37:44)],use.names=FALSE), TEMP = unlist(ww3_diarios_buzios[,c(45:52)],use.names=FALSE), PREC = unlist(ww3_diarios_buzios[,c(53:60)],use.names=FALSE), NEB = unlist(ww3_diarios_buzios[,c(61:68)],use.names=FALSE))
+
+temp_ww3_diarios_buzios = apply_labels(temp_ww3_diarios_buzios, VV= "Velocidade do Vento (m/s)", DV = "Direcao dos Ventos (ºN)", AO = "Altura Significativa de Ondas (m)", TEMP = "Temperatura Atmosférica (ºC)", DO = "Direcao Média das Ondas (ºN)", PO = "Periodo de Ondas (s)", PREC = "Precipitação (mm)", NEB = "Nebulosidade (%)")
+
+temp_ww3_diarios_buzios <- lapply(temp_ww3_diarios_buzios, as.numeric)
+temp_ww3_diarios_buzios <- as.data.frame(temp_ww3_diarios_buzios)
+
+tabela_ww3_buzios <- temp_ww3_diarios_buzios %>%
+  tab_cells(VV,DV,AO,DO,PO,TEMP,PREC,NEB) %>%
+  tab_cols(Total="2003 a 2019","Durante Tempestades"=AO>=3) %>%
+  tab_stat_fun("Média"=w_mean,"Mínima"=w_min,"Máxima"= w_max,"Desvio Padrão"=w_sd,"N"=w_n) %>%
+  tab_pivot(stat_position = "inside_columns") %>%
+  tab_caption("Estatística Basica dos Dados da Estaçao Buzios")
+
+tabela_ww3_buzios <- tabela_ww3_buzios[,-c(3)]
+
+print((paste("Os dados registrados pela reanálise do modelo Wave Watch III para a localidade de Búzios-RJ entre os anos de",first(ww3_diarios_buzios$ANO),"e",last(ww3_diarios_buzios$ANO),"permitiram verificar que o valor médio da variável Altura Significativa de Ondas foi de", round(mean(temp_ww3_diarios_buzios$AO,na.rm = TRUE),1),"m, e o valor máximo foi de",round(max(temp_ww3_diarios_buzios$AO,na.rm = TRUE),1),"m. O período médio de ondas registrado foi de",round(mean(temp_ww3_diarios_buzios$PO,na.rm = TRUE),1),"segundos e a direção mais comum da entrada de ondas foi de",names(which.max(table(temp_ww3_diarios_buzios$DO))),"graus. Em relação aos ventos costeiros registrados pelo modelo a velocidade média foi de",round(mean(temp_ww3_diarios_buzios$VV,na.rm = TRUE),1),"m/s, soprando majoritariamente da direção",names(which.max(table(temp_ww3_diarios_buzios$DV))),"graus e a velocidade máxima registrada foi de",round(max(temp_ww3_diarios_buzios$VV,na.rm = TRUE),1),"m/s. Em relação às variáveis atmosféricas, as oscilações de temperatura foram entre",min(temp_ww3_diarios_buzios$TEMP,na.rm = TRUE),"e",max(temp_ww3_diarios_buzios$TEMP, na.rm = TRUE),"graus celsius, a nebulosidade média registrada foi de", round(mean(temp_ww3_diarios_buzios$NEB,na.rm = TRUE)),"% e o acúmulo anual médio de chuvas foi de",round(sum(temp_ww3_diarios_buzios$PREC,na.rm = TRUE)/(last(ww3_diarios_buzios$ANO - first(ww3_diarios_buzios$ANO)))),"milímetros. A estatística básica desses dados pode ser observada na tabela a seguir:")))
+tabela_ww3_buzios
+```
+
+```{r Extração de Informações PNBOIA Cabo Frio}
+
+print(paste("Os dados registrados pela bóia oceânica de Cabo Frio entre os anos de",first(pnboia_diarios_cabofrio$ANO),"e",last(pnboia_diarios_cabofrio$ANO),"permitiram verificar que o valor médio da variável Altura Significativa de Ondas foi de",round(mean(pnboia_diarios_cabofrio$AO,na.rm = TRUE),1),"m, e o valor máximo foi de",round(max(pnboia_diarios_cabofrio$AO,na.rm = TRUE),1),"m. Já em relação à variável Altura Máxima de Ondas, o valor médio foi de",round(mean(pnboia_diarios_cabofrio$AO.max,na.rm = TRUE),1),"m. Cabe destacar que para estes resultados a altura máxima de ondas é, em média,",round(mean(pnboia_diarios_cabofrio$AO/pnboia_diarios_cabofrio$AO.max,na.rm = TRUE)*100),"% maior que a Altura Significativa. O período médio de ondas registrado foi de",round(mean(pnboia_diarios_cabofrio$PO,na.rm = TRUE)),"segundos e a direção média da entrada de ondas foi de", round(mean(pnboia_diarios_cabofrio$DO,na.rm = TRUE)),"graus. Em relação aos ventos costeiros, a velocidade média foi de",round(mean(pnboia_diarios_cabofrio$VV,na.rm = TRUE),1),"m/s, soprando majoritariamente da direção",names(which.max(table(pnboia_diarios_cabofrio$DV))),"graus. A velocidade máxima registrada foi de",round(max(pnboia_diarios_cabofrio$VV,na.rm = TRUE),1),"m/s. A estatística básica pode ser observada na tavela a seguir:"))
+tabela_pnboia_diarios_cabofrio
+
+```
+

@@ -1,0 +1,251 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+# MAPEAMENTO COSTEIRO 2020
+# DOCENTE: EDUARDO BULHÕES
+# DISCENTE: CAMILA TOTTI
+# AULA INICIAL: MAPEAMENTO COSTEIRO COM R
+
+# OBS.: atalho para inserir um novo Chunk de código: 
+## cntrl + alt + i
+```{r INSTALANDO PACOTES UTEIS}
+install.packages('sf')
+install.packages('raster')
+install.packages('dplyr')
+install.packages('spData')
+install.packages('leaflet')
+install.packages('mapview')
+install.packages('geobr')
+install.packages('rio')
+install.packages('ggplot2')
+install.packages('rgeos')
+install.packages('ggspatial')
+install.packages('viridis')
+install.packages('rgdal')
+install.packages('rnaturalearth')
+install.packages('rnaturalearthdata')
+```
+
+# OBS.: para rodar um Chunk inteiro, digitar: 
+## cntrl + shift + Enter 
+
+```{r CARREGANDO OS PACOTES UTEIS}
+library('sf')
+library('raster')
+library('dplyr')
+library('spData')
+library('leaflet')
+library('mapview')
+library('geobr')
+library('rio')
+library('ggplot2')
+library('rgeos')
+library('ggspatial')
+library('viridis')
+library('rgdal')
+library('rnaturalearth')
+library('rnaturalearthdata')
+```
+
+```{r CRIANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - PLANISFERIO}
+world <- ne_countries(scale='medium',returnclass = 'sf')
+
+# MAPA MUNDO BASE
+map_mundo <- ggplot(data = world) + geom_sf()
+map_mundo
+
+# MAPA MUNDO COM TITULO E LEGENDA PARA LATITUDE E LONGITUDE
+map_mundo2 <- ggplot(data = world) + geom_sf() + xlab('Longitude')+ylab('Latitude') + ggtitle('Mapa Mundi',subtitle = paste0(length(unique(world$name)), " países"))
+map_mundo2
+
+# MAPA MUNDO COM CORES
+map_mundo3 <- ggplot(data = world) + geom_sf(color="grey", fill = "lightgreen") + xlab('Longitude')+ylab('Latitude') + ggtitle('Mapa Mundi',subtitle = paste0(length(unique(world$name)), " países"))
+map_mundo3 
+
+# MAPA MUNDO COM COLORMAP (escala de cores com base em variável quantitativa)
+# EXPLICANDO:
+## Em 'scale_fill_viridis', o comando 'direction = -1' indica se a escala de cores vai ser "crescente" ou "decrescente"
+map_mundo4 <- ggplot(data = world) + geom_sf(aes(fill=pop_est)) + scale_fill_viridis("População Estimada", direction = -1, option = "A") + xlab('Longitude')+ylab('Latitude') + ggtitle('Mapa Mundi',subtitle = paste0(length(unique(world$name)), " países"))
+map_mundo4
+
+
+# MAPA MUNDO COM O CRS DFINIDO
+map_mundo5 <- ggplot(data = world) + geom_sf(aes(fill=pop_est)) + coord_sf(crs = "+proj=laea +lat_0=52 +long_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs") + scale_fill_viridis("População Estimada", direction = -1, option = "A") + xlab('Longitude')+ylab('Latitude') + ggtitle('Mapa Mundi',subtitle = paste0(length(unique(world$name)), " países"))
+map_mundo5
+```
+
+```{r GERANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - BRASIL ESTADOS}
+
+# TABELA COM DADOS DOS ESTADOS BRASILEIROS A PARTIR DA BIBLIOTECA - geobr
+estados_br <- read_state(code_state = "all", year = 2019, simplified = TRUE)
+
+# MAPA ESTADOS BR BASE
+map_estados_br <- ggplot(data = estados_br) + geom_sf()
+map_estados_br
+
+# MAPA ESTADOS BR - MUDANDO A ESTÉTICA
+map_estados_br2 <- ggplot(data = estados_br) + geom_sf(aes(fill=name_region)) + scale_fill_discrete("Região")
+map_estados_br2
+
+# MAPA ESTADOS BR - ADICIONANDO LEGENDAS 
+map_estados_br3 <- ggplot(data = estados_br) + geom_sf(aes(fill=name_region)) + scale_fill_discrete("Região") + geom_sf_text(aes(label=abbrev_state), colour="white", size=2.5)
+map_estados_br3
+```
+
+```{r GERANDO E AJUSTANDO AS FEIÇÕES E BASES ESPACIAIS - BRASIL MUNICIPIOS}
+
+# USANDO O geobr PARA IMPORTAR AS TABELAS DE MUNICÍPIOS GEOREFERENCIADOS
+municipios_br <- read_municipality(code_muni = "all", year = 2019)
+
+# MAPA MUNICIPIOS BR BASE
+map_municipios_br <- ggplot(data = municipios_br) + geom_sf()
+map_municipios_br
+
+# MAPA MUNICIPIOS BR - COM CORES POR REGIÃO E AJUSTE DO TAMANHO DAS LINHAS
+map_municipios_br2 <- ggplot(data = municipios_br) + geom_sf(aes(fill=name_region), size = 0.08) + scale_fill_discrete("Municípios por Região")
+map_municipios_br2
+
+# MAPA MUNICIPIOS BR COM ÁREA DELIMITADA POR COORDENADAS INFORMADAS
+map_municipios_br3 <- ggplot(data = municipios_br) + geom_sf(aes(fill=name_region), size = 0.08) + scale_fill_discrete("Municípios por Região") + coord_sf(xlim = c(-52.5,-27.5), ylim = c(-35,5), expand = FALSE)
+map_municipios_br3
+```
+
+```{r GERANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - BRASIL SETORES CENSITARIOS}
+
+# BAIXANDO SHAPES DE DADOS CENSITÁRIOS DIRETO DO IBGE
+setores_censitarios_br <- read_census_tract(code_tract = "all", year = 2010, simplified = TRUE)
+
+# MAPA SETORES CENS BR BASE
+mapa_setores_cens_br <- ggplot(data = setores_censitarios_br) + geom_sf()
+mapa_setores_cens_br
+
+# MAPA SETORES CENS BR COM CORES DEFINIDAS POR ZONA (RURAL, URBANA)
+mapa_setores_cens_br2 <- ggplot(data = setores_censitarios_br) + geom_sf(aes(fill=zone), size = 0.1) + scale_fill_manual("Setores Censitários por Tipo", values = c("green", "red"))
+mapa_setores_cens_br2
+
+```
+
+
+# MAPEAMENTO COSTEIRO COM R AULA 2
+
+```{r GERANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - MUNICIPIOS COSTEIROS BR}
+install.packages("units")
+library("units")
+
+# Ajustando coordenadas e calculando areas dos Municipios BR
+municipios_br = st_set_crs(municipios_br, 4326) # crs 4328 = Datum WGS 84
+st_is_longlat(municipios_br) # pergunta se está em latitude e longitude
+st_transform(municipios_br,32724) # transforma o sist de longlat para um sistema de coordenadas projetadas, nesse caso, Universal Transverso de Mercator, UTM 24
+area_km2 <- units::set_units(st_area(municipios_br), km^2) # calcula a area
+area_km2 <- as.vector(area_km2) # defino como um arquivo de vetor
+municipios_br <- cbind(municipios_br,area_km2) # une os valores da area_km2 em uma nova coluna da tabela de "municipios_br"
+
+# Importando dados do SIDRA
+install.packages("sidrar") 
+library("sidrar")
+
+populacao_2020_municipios_br <- get_sidra(api="/t/6579/p/last/v/allxp/n6/all/f/u/h/y") # tabela e filtros dos dados que eu quero do SIDRA
+populacao_2020_municipios_br$code_muni = as.double(populacao_2020_municipios_br$`Município (Código)`) # quero transformar o codigo do município dessa tabela para conversar com o código do município da tabela "municipios_br".
+
+# Definindo os municipios da Zona Costeira Brasileira
+lista_municipios_zc_br_2021 <- as.data.frame(read.delim("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_III_Aula_II/municipios zc br 2021.tsv"))
+municipios_costeiros_br_2021 <- subset(municipios_br, code_muni %in% lista_municipios_zc_br_2021$code_muni) # cria uma lista dos mun cost, extraindo dados da tabela "municipios_br"
+municipios_costeiros_br_2021 <- inner_join(municipios_costeiros_br_2021, populacao_2020_municipios_br, by="code_muni")
+
+# Mapas
+map_municipios_costeiros_br_2021 <- ggplot() + geom_sf(data=world,size=0.001,fill="gray95") + geom_sf(data = estados_br,size=0.1,fill="gray75") + geom_sf(data=municipios_costeiros_br_2021,aes(fill=Valor), size=0.001) + scale_fill_viridis(name="População Residente", direction = -1) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color=gray(0.5),linetype = "dashed", size=0.2), panel.background = element_rect(fill="aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-55,-27.5), ylim = c(-35,5), expand = FALSE) + geom_sf_text(data=estados_br, aes(label=abbrev_state), colour="grey99", size=2.5) + ggtitle("Municípios da Zona Costeira Brasileira", subtitle = "Estimativa da População em 2020")
+map_municipios_costeiros_br_2021
+
+# INFORMACOES SOBRE OS MUNICIPIOS COSTEIROS
+
+print(paste("No Brasil existem hoje",nrow(municipios_costeiros_br_2021),"municipios que fazem parte dos limites oficiais da faixa terrestre da zona costeira. Tais municípios ocupam uma área de",round(sum(municipios_costeiros_br_2021$area_km2),1),"km2 o que corresponde a ",round(sum(municipios_costeiros_br_2021$area_km2)*100/sum(municipios_br$area_km2),2),"% do território nacional. A população residente total estimada em 2020 para estes municípios é de",round(sum(municipios_costeiros_br_2021$Valor)/1000000,2),"milhões de pessoas e isto corresponde a",round(sum(municipios_costeiros_br_2021$Valor)*100/sum(populacao_2020_municipios_br$Valor),1),"% da população brasileira"))
+
+# RECORTE PARA O RIO DE JANEIRO
+municipios_costeiros_rj_2021 <- filter(municipios_costeiros_br_2021, abbrev_state=="RJ")
+
+map_municipios_costeiros_rj_2021 <- ggplot(municipios_costeiros_rj_2021) + geom_sf()
+map_municipios_costeiros_rj_2021 # mapa simples
+
+## mapa complexo
+map_municipios_costeiros_rj_2021 <- ggplot() + geom_sf(data=world,size=0.001,fill="gray95") + geom_sf(data = estados_br,size=0.1,fill="gray75") + geom_sf(data=municipios_costeiros_rj_2021,aes(fill=Valor), size=0.001) + scale_fill_viridis(name="População Residente", direction = -1) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color=gray(0.5),linetype = "dashed", size=0.2), panel.background = element_rect(fill="aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-45,-40.5), ylim = c(-24,-20), expand = FALSE) + geom_sf_text(data=estados_br, aes(label=abbrev_state), colour="grey99", size=2.5) + ggtitle("Municípios da Zona Costeira Fluminense", subtitle = "Estimativa da População em 2020")
+map_municipios_costeiros_rj_2021
+
+# Recorte para QUALQUER OUTRO ESTADO
+municipios_costeiros_es_2021 <- filter(municipios_costeiros_br_2021,abbrev_state=="ES")
+
+map_municipios_costeiros_es_2021 <- ggplot(municipios_costeiros_es_2021) + geom_sf()
+map_municipios_costeiros_es_2021 # mapa simples ________ (xlim = -42,-39), (ylim = -21.5, -18)
+
+## mapa complexo
+map_municipios_costeiros_es_2021 <- ggplot() + geom_sf(data=world,size=0.001,fill="gray95") + geom_sf(data = estados_br,size=0.1,fill="gray75") + geom_sf(data=municipios_costeiros_es_2021,aes(fill=Valor), size=0.001) + scale_fill_viridis(name="População Residente", direction = -1) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color=gray(0.5),linetype = "dashed", size=0.2), panel.background = element_rect(fill="aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-42,-39), ylim = c(-21.5,-18), expand = FALSE) + geom_sf_text(data=estados_br, aes(label=abbrev_state), colour="grey99", size=2.5) + ggtitle("Municípios da Zona Costeira Capixaba", subtitle = "Estimativa da População em 2020")
+map_municipios_costeiros_es_2021
+
+```
+
+
+# MAPEAMENTO COSTEIRO COM R AULA 03
+
+```{r GERANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - USO E COBERTURA DO SOLO INEA RJ 2007, 2013, 2015 E 2017}
+
+zc_rj_usoecobertura_inea_2007 <- readOGR("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_IV_Aula_III/zc_rj_usoecobertura_inea/zc_rj_usoecobertura_inea_2007.shp")
+zc_rj_usoecobertura_inea_2007 <- st_as_sf(zc_rj_usoecobertura_inea_2007)
+
+zc_rj_usoecobertura_inea_2013 <- readOGR("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_IV_Aula_III/zc_rj_usoecobertura_inea/zc_rj_usoecobertura_inea_2013.shp")
+zc_rj_usoecobertura_inea_2013 <- st_as_sf(zc_rj_usoecobertura_inea_2013)
+
+zc_rj_usoecobertura_inea_2015 <- readOGR("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_IV_Aula_III/zc_rj_usoecobertura_inea/zc_rj_usoecobertura_inea_2015.shp")
+zc_rj_usoecobertura_inea_2015 <- st_as_sf(zc_rj_usoecobertura_inea_2015)
+
+zc_rj_usoecobertura_inea_2018 <- readOGR("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_IV_Aula_III/zc_rj_usoecobertura_inea/zc_rj_usoecobertura_inea_2018.shp")
+zc_rj_usoecobertura_inea_2018 <- st_as_sf(zc_rj_usoecobertura_inea_2018)
+
+
+# Mapas
+
+map_zc_rj_usoecobertura_inea_2007 <- ggplot() + geom_sf(data=estados_br,size=0.1,fill="gray75")+geom_sf(data=zc_rj_usoecobertura_inea_2007,aes(fill=class_name),size=0.001) + scale_fill_manual(values=c("black","lightgoldenrod1","royalblue","steelblue2","lightgreen","tan4","yellow","khaki3","darkgreen","white","forestgreen","yellow3","grey90","brown","grey30","red","darkolivegreen3","darkolivegreen4")) + theme(legend.position = "bottom", legend.text = element_text(size = 10), legend.title = element_blank()) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", size = 0.2), panel.background = element_rect(fill = "aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-45,-40.8), ylim = c(-24,-21), expand = FALSE) + ggtitle("Uso e Cobertura do Solo, Zona Costeira do RJ, 2007") + theme(plot.title = element_text(size=10))
+map_zc_rj_usoecobertura_inea_2007
+
+map_zc_rj_usoecobertura_inea_2013 <- ggplot() + geom_sf(data=estados_br,size=0.1,fill="gray75")+geom_sf(data=zc_rj_usoecobertura_inea_2013,aes(fill=class_name),size=0.001) + scale_fill_manual(values=c("black","lightgoldenrod1","royalblue","steelblue2","lightgreen","tan4","yellow","khaki3","darkgreen","white","forestgreen","yellow3","grey90","brown","grey30","red","darkolivegreen3","darkolivegreen4")) + theme(legend.position = "bottom", legend.text = element_text(size = 10), legend.title = element_blank()) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", size = 0.2), panel.background = element_rect(fill = "aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-45,-40.8), ylim = c(-24,-21), expand = FALSE) + ggtitle("Uso e Cobertura do Solo, Zona Costeira do RJ, 2013") + theme(plot.title = element_text(size=10))
+map_zc_rj_usoecobertura_inea_2013
+
+map_zc_rj_usoecobertura_inea_2015 <- ggplot() + geom_sf(data=estados_br,size=0.1,fill="gray75")+geom_sf(data=zc_rj_usoecobertura_inea_2015,aes(fill=class_name),size=0.001) + scale_fill_manual(values=c("black","lightgoldenrod1","royalblue","steelblue2","lightgreen","tan4","yellow","khaki3","darkgreen","white","forestgreen","yellow3","grey90","brown","grey30","red","darkolivegreen3","darkolivegreen4")) + theme(legend.position = "bottom", legend.text = element_text(size = 10), legend.title = element_blank()) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", size = 0.2), panel.background = element_rect(fill = "aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-45,-40.8), ylim = c(-24,-21), expand = FALSE) + ggtitle("Uso e Cobertura do Solo, Zona Costeira do RJ, 2015") + theme(plot.title = element_text(size=10))
+map_zc_rj_usoecobertura_inea_2015
+
+map_zc_rj_usoecobertura_inea_2018 <- ggplot() + geom_sf(data=estados_br,size=0.1,fill="gray75")+geom_sf(data=zc_rj_usoecobertura_inea_2018,aes(fill=classe),size=0.001) + scale_fill_manual(values=c("black","lightgoldenrod1","royalblue","steelblue2","lightgreen","tan4","yellow","darkgreen","white","forestgreen","yellow3","grey90","red","darkolivegreen3","darkolivegreen4")) + theme(legend.position = "bottom", legend.text = element_text(size = 10), legend.title = element_blank()) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", size = 0.2), panel.background = element_rect(fill = "aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim = c(-45,-40.8), ylim = c(-24,-21), expand = FALSE) + ggtitle("Uso e Cobertura do Solo, Zona Costeira do RJ, 2018") + theme(plot.title = element_text(size=10))
+map_zc_rj_usoecobertura_inea_2018
+
+
+# Composicao de Mapas
+install.packages("ggpubr")
+library("ggpubr")
+
+tiff("quadro_mapas_usoecobertura_inea_zc_rj",units = "in", width = 15, height = 10, res = 300)
+
+quadro_mapas_usoecobertura_inea_zc_rj <- ggarrange(map_zc_rj_usoecobertura_inea_2007,map_zc_rj_usoecobertura_inea_2013,map_zc_rj_usoecobertura_inea_2015,map_zc_rj_usoecobertura_inea_2018, ncol=2, nrow=2, common.legend = TRUE, legend="bottom")
+quadro_mapas_usoecobertura_inea_zc_rj
+
+```
+
+
+# MAPEAMENTO COSTEIRO COM R - AULA 4
+
+```{r GERANDO E AJUSTANDO AS FEICOES E BASES ESPACIAIS - GEOMORFOLOGIA IBGE}
+
+zc_br_geomorfologia_ibge <- readOGR("~/Geografia/Disciplinas/Mapeamento Costeiro - Bulhões/R MAPEAMENTO COSTEIRO/Atividade_V_Aula_IV/zc_br_geomorfologia_ibge/zc_br_geom_area.shp")
+zc_br_geomorfologia_ibge <- st_as_sf(zc_br_geomorfologia_ibge)
+
+# Mapa
+##tiff("map_zc_br_geomorfologia_ibge.tiff", units = "in", width = 15, height = 10, res = 300)
+map_zc_br_geomorfologia_ibge <- ggplot() + geom_sf(data = world, size=0.001, fill="gray95") + geom_sf(data = estados_br, size=0.1, fill="gray85") + geom_sf(data = zc_br_geomorfologia_ibge, aes(fill=letra_simb), size=0.001, na.omit=TRUE) + theme(legend.position = "right", legend.text = element_text(size=9), legend.title = element_blank()) + scale_fill_viridis_d(labels=c("Ade-Duna","Afm-Planície flúviomarinha", "Ai-Planície de Inundação", "Ape-Planície Eólica", "Apf-Planície Fluvial", "Apfl-Planície fluviolacustre", "Apfm-Planície fluviomarinha", "Apl-Planície lacustre", "Aplg-Planície lagunar", "Apm-Planície marinha", "Aptf-Planície e terraço fluvial", "Arc-Rampa de colúvio", "Atf-Terraço fluvial", "Atfl-Terraço fluviolacustre", "Atfm-Terraço fluviomarinho", "Atlg-Terraço lagunar", "Atm-Terraço Marinho", "Da-Dissecação homogênea aguçada", "Dc-Dissecação homogênea convexa", "DEa-Dissecação Estrutural aguçada", "DEc-Dissecação estrutural convexa", "Dei-Encosta ingreme de erosão", "Dir-Ilha rochosa", "Dr-Dissecação em ravinas", "Dt-Dissecação homogênea tabular", "Pgi-Pediplano degradado inumado", "Pgu-Pediplano degradado desnudado", "Pri-Pediplano retocado inumado", "Pru-Pediplano retocado desnudado"), direction = -1) + xlab("Longitude") + ylab("Latitude") + theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", size = 0.2), panel.background = element_rect(fill = "aliceblue")) + annotation_scale(location="br", pad_y = unit(0.7,"cm"), width_hint = 0.5, bar_cols = c("grey", "white"), line_width = 0.5, text_pad = unit(0.05, "cm")) + annotation_north_arrow(location="br", which_north = "true", pad_x = unit(0.1, "in"), pad_y = unit(0.4, "in"), style = north_arrow_fancy_orienteering) + coord_sf(xlim=c(-55,-27.5),ylim = c(-35,5), expand = FALSE) + geom_sf_text(data=estados_br,aes(label=abbrev_state), colour="grey99", size=2.5) + ggtitle("Municípios da Zona Costeira Brasileira", subtitle = "Modelados da Geomorfologia Brasileira, IBGE")
+map_zc_br_geomorfologia_ibge
+
+
+# Gráfico
+##tiff("graph_zc_br_geomorfologia_ibge.tiff", units="in", width = 15, height=10, res=300)
+graph_zc_br_geomorfologia_ibge <- ggplot(zc_br_geomorfologia_ibge, aes(y=reorder(letra_simb,desc(letra_simb)), x=ar_poli_km, fill=letra_simb),na.omit(zc_br_geomorfologia_ibge)) + geom_col(na.rm=TRUE) + xlab("Area em km2") + ylab("Classes") + scale_fill_viridis_d(name="Legenda",labels= c("Ade-Duna","Afm-Planície fluviomarinha","Ai-Planície de Inundação","Ape-Planície Eólica","Apf-Planície Fluvial","Apfl-Planície fluviolacustre","Apfm-Planície fluviomarinha","Apl-Planície lacustre","Aplg-Planície lagunar", "Apm-Planície marinha","Aptf-Planície e terraço fluvial","Arc-Rampa de colúvio","Atf-Terraço fluvial","Atfl-Terraço fluviolacustre","Atfm-Terraço fluviomarinho","Atlg-Terraço lagunar","Atm-Terraço Marinho","Da-Dissecação homogênea aguçada","Dc-Dissecação homogênea convexa","DEa-Dissecação estrutural aguçada","DEc-Dissecação estrutural convexa","Dei-Enconsta íngreme de erosão","Dir-Ilha rochosa","Dr-Dissecação em ravinas","Dt-Dissecação homogênea tabular","Pgi-Pediplano degradado inumado","Pgu-Pediplano degradado desnudado","Pri-Pediplano retocado inumado","Pru-Pediplano retocado desnudado"),direction=-1)
+graph_zc_br_geomorfologia_ibge
+
+```
+
